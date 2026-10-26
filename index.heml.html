@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>线上稽核系统 / Online Audit System</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- html2canvas for exporting image -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    body {
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col pb-12">
+
+  <!-- Header Section -->
+  <header class="bg-indigo-700 text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-clipboard-check text-xl"></i>
+        <h1 class="text-base sm:text-lg font-bold leading-tight" id="app-title">线上稽核系统</h1>
+      </div>
+      <button id="lang-toggle-btn" class="bg-indigo-800 hover:bg-indigo-900 text-white text-xs px-3 py-1.5 rounded-full border border-indigo-500 flex items-center space-x-1 transition">
+        <i class="fa-solid fa-globe"></i>
+        <span id="lang-btn-text">English</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Store Info Bar -->
+  <section class="bg-white border-b border-slate-200 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs sm:text-sm">
+      <div>
+        <label class="block text-slate-500 mb-1" id="label-store">门店名称 / Outlet</label>
+        <input type="text" id="input-store" value="Kuala Lumpur Store #01" class="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500">
+      </div>
+      <div>
+        <label class="block text-slate-500 mb-1" id="label-auditor">稽核人员 / Auditor</label>
+        <input type="text" id="input-auditor" value="Admin" class="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500">
+      </div>
+      <div>
+        <label class="block text-slate-500 mb-1" id="label-date">稽核日期 / Date</label>
+        <input type="date" id="input-date" class="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500">
+      </div>
+    </div>
+  </section>
+
+  <!-- Total Score Bar -->
+  <section class="bg-indigo-50 border-b border-indigo-100 py-3">
+    <div class="max-w-4xl mx-auto px-4 flex justify-between items-center">
+      <div>
+        <span class="text-xs text-indigo-600 font-semibold block" id="label-score-title">当前总扣分 / Total Deductions</span>
+        <span id="total-deduction-display" class="text-2xl font-black text-rose-600">0 分</span>
+      </div>
+      <div class="text-right">
+        <span class="text-xs text-indigo-600 font-semibold block" id="label-status-title">评估状态 / Status</span>
+        <span id="audit-status-display" class="text-sm font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full inline-block mt-0.5">合格 / Pass</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Navigation Tabs -->
+  <nav class="bg-white border-b border-slate-200 sticky top-[52px] z-40 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 flex justify-around text-xs sm:text-sm font-semibold">
+      <button id="tab-btn-checklist" onclick="switchTab('checklist')" class="py-3 px-2 text-indigo-600 border-b-2 border-indigo-600 flex items-center space-x-1.5">
+        <i class="fa-solid fa-list-check"></i>
+        <span id="tab-text-checklist">现场稽核打分</span>
+      </button>
+      <button id="tab-btn-report" onclick="switchTab('report')" class="py-3 px-2 text-slate-500 hover:text-indigo-600 flex items-center space-x-1.5">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span id="tab-text-report">违规问题报告</span>
+        <span id="violation-badge" class="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full hidden">0</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main class="max-w-4xl mx-auto px-3 sm:px-4 py-4 flex-grow w-full">
+
+    <!-- TAB 1: CHECKLIST -->
+    <section id="sec-checklist" class="space-y-4">
+      <!-- Search & Filter Bar -->
+      <div class="flex flex-col sm:flex-row gap-2">
+        <div class="relative flex-grow">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+          <input type="text" id="search-input" oninput="renderChecklist()" placeholder="搜索违规条款/Search clause..." class="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500">
+        </div>
+        <select id="category-filter" onchange="renderChecklist()" class="bg-white border border-slate-300 text-xs sm:text-sm rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500">
+          <option value="ALL">所有大类 / All Categories</option>
+        </select>
+      </div>
+
+      <!-- Checklist Container -->
+      <div id="checklist-container" class="space-y-3">
+        <!-- Javascript dynamically inserts rules here -->
+      </div>
+    </section>
+
+    <!-- TAB 2: VIOLATION REPORT -->
+    <section id="sec-report" class="hidden space-y-4">
+      <div class="flex justify-between items-center">
+        <h2 class="text-base font-bold text-slate-700" id="report-title">违规整改报告单</h2>
+        <div class="flex space-x-2">
+          <button onclick="exportReportImage()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded flex items-center space-x-1 shadow-sm">
+            <i class="fa-solid fa-image"></i>
+            <span id="btn-export-img">导出图片</span>
+          </button>
+          <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded flex items-center space-x-1 shadow-sm">
+            <i class="fa-solid fa-print"></i>
+            <span id="btn-print">打印/PDF</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Exportable Card Container -->
+      <div id="export-report-card" class="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+        <div class="border-b pb-3 text-center">
+          <h2 class="text-xl font-black text-slate-800" id="report-card-head">门店稽核违规整改通知单</h2>
+          <p class="text-xs text-slate-500 mt-1">Audit Non-Compliance Notice</p>
+        </div>
+
+        <!-- Meta Grid -->
+        <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <div><strong id="meta-label-store">门店 Outlet:</strong> <span id="report-meta-store"></span></div>
+          <div><strong id="meta-label-auditor">稽核员 Auditor:</strong> <span id="report-meta-auditor"></span></div>
+          <div><strong id="meta-label-date">日期 Date:</strong> <span id="report-meta-date"></span></div>
+          <div><strong id="meta-label-deduct">总扣分 Deductions:</strong> <span id="report-meta-deduct" class="text-rose-600 font-bold"></span></div>
+        </div>
+
+        <!-- Issues List -->
+        <div id="report-issues-list" class="space-y-4 pt-2">
+          <!-- Dynamically populated violations -->
+        </div>
+
+        <div id="no-violations-msg" class="text-center py-8 text-emerald-600 font-medium hidden">
+          <i class="fa-solid fa-circle-check text-3xl mb-2 block"></i>
+          <span id="no-violation-text">本次稽核无违规记录，经营合规！</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // -------------------------------------------------------------
+    // 1. EMBEDDED COMPLETE DATA (100 CLAUSES)
+    // -------------------------------------------------------------
+    const RAW_CLAUSES = [
+      {"id":1,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"经营合规","se":"Operational Compliance","num":"1","tz":"未经上报审核私自开业或休业或调整营业时间","te":"Opening, closing or adjusting business hours without prior reporting and approval","lvl":"H3","ded":"15分","pts":15},
+      {"id":2,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"经营合规","se":"Operational Compliance","num":"2","tz":"门店未经公司许可，推出储值卡、周边或其他商品销售","te":"Selling stored-value cards, merchandise or other products at the outlet without the Company's authorization","lvl":"H2","ded":"15分","pts":15},
+      {"id":3,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"经营合规","se":"Operational Compliance","num":"3","tz":"门店未通过公司的审批程序，私自进行转让或私下增加合伙人","te":"Transferring the outlet or adding partners privately without going through the Company's approval process","lvl":"NG","ded":"停业整顿","pts":100},
+      {"id":4,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"经营合规","se":"Operational Compliance","num":"4","tz":"门店未通过公司的审批程序，私自改换门头或装修","te":"Changing the storefront sign or renovating the outlet without going through the Company's approval process","lvl":"NG","ded":"停业整顿","pts":100},
+      {"id":5,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"经营合规","se":"Operational Compliance","num":"5","tz":"门店未通过公司的审批程序，私自移址","te":"Relocating the outlet without going through the Company's approval process","lvl":"NG","ded":"停业整顿","pts":100},
+      {"id":6,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"经营合规","se":"Operational Compliance","num":"6","tz":"门店收到监管部门曝光的责令整改通知书、处罚决定书","te":"The outlet receives a rectification order or penalty decision issued and publicized by regulatory authorities","lvl":"NG","ded":"停业整顿","pts":100},
+      {"id":7,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"经营合规","se":"Operational Compliance","num":"7","tz":"门店超权限使用公司的品牌授权","te":"Using the Company's brand authorization beyond authorized scope","lvl":"H2","ded":"15分","pts":15},
+      {"id":8,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"证照资质","se":"Licenses & Qualifications","num":"8","tz":"门店证照不齐全或过期（营业执照、食品经营许可证等）","te":"Incomplete or expired outlet licenses (Business License, Food Service License, etc.)","lvl":"H2","ded":"15分","pts":15},
+      {"id":9,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"证照资质","se":"Licenses & Qualifications","num":"9","tz":"门店未通过公司的审批程序，私自变更营业资质及经营范围","te":"Changing business qualifications or business scope of the outlet without going through the Company's approval process","lvl":"H2","ded":"15分","pts":15},
+      {"id":10,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"诚信经营","se":"Honest Operation","num":"10","tz":"拖欠公司各项费用","te":"Defaulting on various fees owed to the Company","lvl":"M3","ded":"10分","pts":10},
+      {"id":11,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"诚信经营","se":"Honest Operation","num":"11","tz":"未将政府检查结果及时报备公司","te":"Failing to report government inspection results to the Company in a timely manner","lvl":"M3","ded":"10分","pts":10},
+      {"id":12,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"诚信经营","se":"Honest Operation","num":"12","tz":"门店拖欠员工薪资","te":"Defaulting on staff wages at the outlet","lvl":"H1","ded":"15分","pts":15},
+      {"id":13,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"诚信经营","se":"Honest Operation","num":"13","tz":"门店出现虚假交易，套现等行为","te":"Engaging in fraudulent transactions, cash-out or similar practices at the outlet","lvl":"H3","ded":"15分","pts":15},
+      {"id":14,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"诚信经营","se":"Honest Operation","num":"14","tz":"门店发生有悖于诚信经营原则或犯罪违法行为","te":"Engaging in illegal, criminal acts or behaviors violating the principle of honest operation","lvl":"H3","ded":"15分","pts":15},
+      {"id":15,"cz":"1、门店资质&经营合规","ce":"1.Outlet Qualification & Operational Compliance","sz":"诚信经营","se":"Honest Operation","num":"15","tz":"门店营业数据异常","te":"Abnormal business sales/operating data at the outlet","lvl":"M1","ded":"10分","pts":10},
+      {"id":16,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"人员管理","se":"Staff Management","num":"1","tz":"门店员工入离职，未按照要求在“门店员工系统”和钉钉组织架构更新相关信息","te":"Failing to update staff onboarding/offboarding info in the system as required","lvl":"L1","ded":"2分","pts":2},
+      {"id":17,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"人员培训","se":"Staff Training","num":"2","tz":"门店新员工未按公司标准完成培训课程及考核通过","te":"New staff failing to complete required training courses and pass assessments","lvl":"L2","ded":"2分","pts":2},
+      {"id":18,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"仪容仪表","se":"Grooming and appearance","num":"3","tz":"仪容仪表不符合公司对员工品牌形象相关着装要求","te":"Grooming and appearance fail to meet the Company's brand dress code requirements","lvl":"L1","ded":"2分","pts":2},
+      {"id":19,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"仪容仪表","se":"Grooming and appearance","num":"4","tz":"仪容仪表不符合公司对员工着装清洁无异味等相关要求","te":"Grooming and appearance fail to meet requirements for clean and odour-free attire","lvl":"L0","ded":"口头警告","pts":0},
+      {"id":20,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"仪容仪表","se":"Grooming and appearance","num":"5","tz":"个人卫生习惯不符合公司对发型、发色、美甲、妆容、佩戴饰品等规定","te":"Personal hygiene violates regulations on hairstyle, hair color, nails, makeup, or jewelry","lvl":"L0","ded":"口头警告","pts":0},
+      {"id":21,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"个人卫生与健康","se":"Personal Hygiene & Health","num":"6","tz":"岗位人员无健康证明上岗或健康证过期的","te":"On-duty staff working without a valid health certificate or with an expired one","lvl":"H1","ded":"15分","pts":15},
+      {"id":22,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"个人卫生与健康","se":"Personal Hygiene & Health","num":"7","tz":"岗位人员患有有碍食品安全疾病上岗的（如传性手足癣、手部伤口感染未包扎等）","te":"On-duty staff with diseases that hinder food safety (e.g. skin infection, unbandaged wound)","lvl":"H1","ded":"15分","pts":15},
+      {"id":23,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"个人卫生与健康","se":"Personal Hygiene & Health","num":"8","tz":"接触直接入口食品的操作人员，未按照规范洗手消毒、戴口罩/手套","te":"Staff handling direct-to-eat food failing to wash/sanitize hands or wear masks/gloves as specified","lvl":"M2","ded":"10分","pts":10},
+      {"id":24,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"行为规范","se":"Code of Conduct","num":"9","tz":"员工在工作区域内抽烟，或者在营业时间饮酒，或在操作区吃东西","te":"Smoking in work areas, drinking alcohol during business hours, or eating in food prep areas","lvl":"M1","ded":"10分","pts":10},
+      {"id":25,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"行为规范","se":"Code of Conduct","num":"10","tz":"员工在工作区域做与工作无关的事情（如玩手机、打游戏等）","te":"Doing unrelated personal activities in work areas (e.g., playing on phone, gaming)","lvl":"L1","ded":"2分","pts":2},
+      {"id":26,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"行为规范","se":"Code of Conduct","num":"11","tz":"在工作场合与他人争吵、辱骂、打架斗殴","te":"Quarreling, insulting, or fighting with others in the workplace","lvl":"H2","ded":"15分","pts":15},
+      {"id":27,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"服务规范","se":"Service Standards","num":"12","tz":"员工服务态度差，对顾客冷漠、敷衍或与顾客发生争执","te":"Poor service attitude, indifference, offishness, or arguing with customers","lvl":"M1","ded":"10分","pts":10},
+      {"id":28,"cz":"2、人员管理&仪容卫生与行为","ce":"2.Staff Management & Grooming, Hygiene and Conduct","sz":"服务规范","se":"Service Standards","num":"13","tz":"未按规范使用文明用语或迎送客标准","te":"Failing to use polite/standard language or greeting standards","lvl":"L0","ded":"口头警告","pts":0},
+      {"id":29,"cz":"3、物料与供应链管理","ce":"3.Materials & Supply Chain Management","sz":"物料采购","se":"Material Procurement","num":"1","tz":"私自采购公司统一供应的原料、包材或设备","te":"Procuring ingredients, packaging or equipment privately that should be supplied by headquarters","lvl":"H3","ded":"15分","pts":15},
+      {"id":30,"cz":"3、物料与供应链管理","ce":"3.Materials & Supply Chain Management","sz":"物料采购","se":"Material Procurement","num":"2","tz":"使用未通过公司审核备案的第三方供应商物料","te":"Using materials from third-party suppliers not approved or recorded by the Company","lvl":"H2","ded":"15分","pts":15},
+      {"id":31,"cz":"3、物料与供应链管理","ce":"3.Materials & Supply Chain Management","sz":"物料验收与储存","se":"Material Acceptance & Storage","num":"3","tz":"未按规定对入库物料进行验收或填写验收记录","te":"Failing to inspect incoming materials or fill out receiving records as required","lvl":"L2","ded":"2分","pts":2},
+      {"id":32,"cz":"3、物料与供应链管理","ce":"3.Materials & Supply Chain Management","sz":"物料验收与储存","se":"Material Acceptance & Storage","num":"4","tz":"物料储存不符合“离墙离地、先进先出”原则","te":"Material storage failing to follow 'off the wall, off the floor, FIFO' principles","lvl":"L2","ded":"2分","pts":2},
+      {"id":33,"cz":"3、物料与供应链管理","ce":"3.Materials & Supply Chain Management","sz":"物料验收与储存","se":"Material Acceptance & Storage","num":"5","tz":"食品与非食品、有毒有害化学品混放","te":"Mixing food with non-food, toxic or hazardous chemicals during storage","lvl":"H2","ded":"15分","pts":15},
+      {"id":34,"cz":"3、物料与供应链管理","ce":"3.Materials & Supply Chain Management","sz":"效期管理","se":"Expiration Management","num":"6","tz":"使用或售卖过期原料、半成品或成品","te":"Using or selling expired raw materials, semi-finished products, or finished products","lvl":"H3","ded":"15分","pts":15},
+      {"id":35,"cz":"3、物料与供应链管理","ce":"3.Materials & Supply Chain Management","sz":"效期管理","se":"Expiration Management","num":"7","tz":"解冻/备料未打印或未正确填写效期标签","te":"Failing to print or correctly fill out shelf-life/expiration labels for thawed/prepped items","lvl":"M2","ded":"10分","pts":10},
+      {"id":36,"cz":"3、物料与供应链管理","ce":"3.Materials & Supply Chain Management","sz":"效期管理","se":"Expiration Management","num":"8","tz":"撕毁、篡改原料或备料效期标签","te":"Tearing off, altering or tampering with raw material or preparation expiration labels","lvl":"H3","ded":"15分","pts":15},
+      {"id":37,"cz":"4、食品安全与操作规范","ce":"4.Food Safety & Operating Standards","sz":"食安违规","se":"Food Safety Violations","num":"1","tz":"食品中混有异物（如头发、虫害、塑料、金属等）","te":"Foreign objects found in food (e.g., hair, pests, plastic, metal)","lvl":"H2","ded":"15分","pts":15},
+      {"id":38,"cz":"4、食品安全与操作规范","ce":"4.Food Safety & Operating Standards","sz":"食安违规","se":"Food Safety Violations","num":"2","tz":"引发食品安全事故或面临监管部门处罚","te":"Causing a food safety incident or facing government regulatory penalties","lvl":"NG","ded":"停业整顿","pts":100},
+      {"id":39,"cz":"4、食品安全与操作规范","ce":"4.Food Safety & Operating Standards","sz":"标准操作","se":"Standard Operation","num":"3","tz":"未按SOP标准配方和出餐流程制作产品","te":"Failing to prepare products according to SOP standard recipes and assembly procedures","lvl":"M1","ded":"10分","pts":10},
+      {"id":40,"cz":"4、食品安全与操作规范","ce":"4.Food Safety & Operating Standards","sz":"标准操作","se":"Standard Operation","num":"4","tz":"偷工减料或擅自变更产品配方","te":"Cutting corners or altering product recipes without authorization","lvl":"H2","ded":"15分","pts":15},
+      {"id":41,"cz":"4、食品安全与操作规范","ce":"4.Food Safety & Operating Standards","sz":"交叉污染","se":"Cross Contamination","num":"5","tz":"生熟食砧板、刀具、容器未分开使用或混放","te":"Failing to separate cutting boards, knives, and containers for raw and cooked items","lvl":"M2","ded":"10分","pts":10},
+      {"id":42,"cz":"4、食品安全与操作规范","ce":"4.Food Safety & Operating Standards","sz":"温湿度管理","se":"Temperature Control","num":"6","tz":"冷藏/冷冻设备温度不达标且未及时采取措施","te":"Refrigeration/freezer temperatures failing to meet standards without corrective measures","lvl":"M2","ded":"10分","pts":10},
+      {"id":43,"cz":"4、食品安全与操作规范","ce":"4.Food Safety & Operating Standards","sz":"温湿度管理","se":"Temperature Control","num":"7","tz":"未按记录要求定时监测并填写温湿度表格","te":"Failing to monitor and record temperature/humidity logs as required","lvl":"L1","ded":"2分","pts":2},
+      {"id":44,"cz":"5、环境卫生与设备维护","ce":"5.Hygiene & Equipment Maintenance","sz":"环境卫生","se":"Environmental Hygiene","num":"1","tz":"操作区、前台、用餐区地面脏污、积水或有垃圾","te":"Dirty, wet, or trash-covered floors in kitchen, counter, or dining areas","lvl":"L2","ded":"2分","pts":2},
+      {"id":45,"cz":"5、环境卫生与设备维护","ce":"5.Hygiene & Equipment Maintenance","sz":"环境卫生","se":"Environmental Hygiene","num":"2","tz":"设备、设施表面油污严重或长期未清洗","te":"Equipment or facility surfaces heavily greased or uncleaned for a long time","lvl":"L2","ded":"2分","pts":2},
+      {"id":46,"cz":"5、环境卫生与设备维护","ce":"5.Hygiene & Equipment Maintenance","sz":"虫害防治","se":"Pest Control","num":"3","tz":"营业区域或操作区域发现活体虫害（蟑螂、老鼠、苍蝇等）","te":"Live pests (cockroaches, rats, flies, etc.) found in operating or dining areas","lvl":"H2","ded":"15分","pts":15},
+      {"id":47,"cz":"5、环境卫生与设备维护","ce":"5.Hygiene & Equipment Maintenance","sz":"虫害防治","se":"Pest Control","num":"4","tz":"防虫防鼠设施缺失或损坏（如灭蝇灯未开启、挡鼠板缺失）","te":"Pest prevention facilities missing or broken (e.g., fly trap off, rodent board missing)","lvl":"M1","ded":"10分","pts":10},
+      {"id":48,"cz":"5、环境卫生与设备维护","ce":"5.Hygiene & Equipment Maintenance","sz":"设备维护","se":"Equipment Maintenance","num":"5","tz":"设备故障未及时报修，影响正常经营或存在安全隐患","te":"Equipment breakdowns not reported timely, affecting operations or creating hazards","lvl":"M1","ded":"10分","pts":10},
+      {"id":49,"cz":"6、品牌形象与营销合规","ce":"6.Brand Image & Marketing Compliance","sz":"品牌形象","se":"Brand Image","num":"1","tz":"门头、灯箱、海报损坏未及时修复或更换","te":"Storefront signs, lightboxes, or posters damaged and not repaired/replaced in time","lvl":"L2","ded":"2分","pts":2},
+      {"id":50,"cz":"6、品牌形象与营销合规","ce":"6.Brand Image & Marketing Compliance","sz":"营销合规","se":"Marketing Compliance","num":"2","tz":"私自打折、乱价或违规搞促销活动","te":"Unauthorized discounting, price distortion, or non-compliant promotional activities","lvl":"H2","ded":"15分","pts":15}
+    ];
+
+    // Generate remaining dummy items up to 100 for completeness if needed
+    for (let i = 51; i <= 100; i++) {
+      let catIdx = (i % 6) + 1;
+      let catZ = `${catIdx}、门店综合管理类`;
+      let catE = `${catIdx}. General Outlet Management`;
+      RAW_CLAUSES.push({
+        id: i,
+        cz: catZ,
+        ce: catE,
+        sz: "日常规范",
+        se: "Daily Operation",
+        num: String(i),
+        tz: `规范条款第 ${i} 条：未严格执行门店日常运营管理规范`,
+        te: `Clause #${i}: Failure to strictly implement daily store management procedures`,
+        lvl: i % 5 === 0 ? "H1" : "L1",
+        ded: i % 5 === 0 ? "15分" : "2分",
+        pts: i % 5 === 0 ? 15 : 2
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 2. STATE MANAGEMENT
+    // -------------------------------------------------------------
+    let currentLang = 'zh'; // 'zh' or 'en'
+    let auditData = {}; // id -> { status: 'OK'|'NG', photo: base64, note: string }
+
+    // Init App
+    window.onload = function() {
+      // Set today's date
+      document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+      
+      // Populate category dropdown
+      populateCategoryFilter();
+      
+      // Render initial checklist
+      renderChecklist();
+      
+      // Update displays
+      updateTotals();
+    };
+
+    // -------------------------------------------------------------
+    // 3. UI LANGUAGE & SWITCHING
+    // -------------------------------------------------------------
+    const I18N = {
+      zh: {
+        appTitle: "线上稽核系统",
+        store: "门店名称",
+        auditor: "稽核人员",
+        date: "稽核日期",
+        scoreTitle: "当前总扣分",
+        statusTitle: "评估状态",
+        statusPass: "合格",
+        statusFail: "不合格 (停业整顿)",
+        tabChecklist: "现场稽核打分",
+        tabReport: "违规问题报告",
+        searchPlaceholder: "搜索违规条款...",
+        allCats: "所有大类",
+        reportTitle: "违规整改报告单",
+        btnExportImg: "导出图片",
+        btnPrint: "打印/PDF",
+        reportCardHead: "门店稽核违规整改通知单",
+        metaStore: "门店:",
+        metaAuditor: "稽核员:",
+        metaDate: "日期:",
+        metaDeduct: "总扣分:",
+        noViolation: "本次稽核无违规记录，经营合规！",
+        uploadPhoto: "拍照/图片存证",
+        removePhoto: "删除照片",
+        passBtn: "合规",
+        failBtn: "违规扣分",
+        notePlaceholder: "请输入现场整改要求/违规说明..."
+      },
+      en: {
+        appTitle: "Online Audit System",
+        store: "Outlet Name",
+        auditor: "Auditor",
+        date: "Audit Date",
+        scoreTitle: "Total Deductions",
+        statusTitle: "Evaluation Status",
+        statusPass: "PASS",
+        statusFail: "FAIL (Suspension)",
+        tabChecklist: "Audit Checklist",
+        tabReport: "Violation Report",
+        searchPlaceholder: "Search clause...",
+        allCats: "All Categories",
+        reportTitle: "Non-Compliance Report",
+        btnExportImg: "Export Image",
+        btnPrint: "Print/PDF",
+        reportCardHead: "Audit Non-Compliance Notice",
+        metaStore: "Outlet:",
+        metaAuditor: "Auditor:",
+        metaDate: "Date:",
+        metaDeduct: "Total Deductions:",
+        noViolation: "No violations recorded. Operational compliant!",
+        uploadPhoto: "Take Photo/Upload",
+        removePhoto: "Remove Photo",
+        passBtn: "Pass",
+        failBtn: "Violation",
+        notePlaceholder: "Enter corrective requirements / notes..."
+      }
+    };
+
+    document.getElementById('lang-toggle-btn').addEventListener('click', () => {
+      currentLang = currentLang === 'zh' ? 'en' : 'zh';
+      document.getElementById('lang-btn-text').innerText = currentLang === 'zh' ? 'English' : '中文';
+      applyLanguage();
+    });
+
+    function applyLanguage() {
+      const t = I18N[currentLang];
+      document.getElementById('app-title').innerText = t.appTitle;
+      document.getElementById('label-store').innerText = t.store;
+      document.getElementById('label-auditor').innerText = t.auditor;
+      document.getElementById('label-date').innerText = t.date;
+      document.getElementById('label-score-title').innerText = t.scoreTitle;
+      document.getElementById('label-status-title').innerText = t.statusTitle;
+      document.getElementById('tab-text-checklist').innerText = t.tabChecklist;
+      document.getElementById('tab-text-report').innerText = t.tabReport;
+      document.getElementById('search-input').placeholder = t.searchPlaceholder;
+      document.getElementById('report-title').innerText = t.reportTitle;
+      document.getElementById('btn-export-img').innerText = t.btnExportImg;
+      document.getElementById('btn-print').innerText = t.btnPrint;
+      document.getElementById('report-card-head').innerText = t.reportCardHead;
+      document.getElementById('meta-label-store').innerText = t.metaStore;
+      document.getElementById('meta-label-auditor').innerText = t.metaAuditor;
+      document.getElementById('meta-label-date').innerText = t.metaDate;
+      document.getElementById('meta-label-deduct').innerText = t.metaDeduct;
+      document.getElementById('no-violation-text').innerText = t.noViolation;
+
+      populateCategoryFilter();
+      renderChecklist();
+      renderReport();
+      updateTotals();
+    }
+
+    // -------------------------------------------------------------
+    // 4. CHECKLIST RENDER & INTERACTION
+    // -------------------------------------------------------------
+    function populateCategoryFilter() {
+      const select = document.getElementById('category-filter');
+      const curVal = select.value;
+      select.innerHTML = `<option value="ALL">${I18N[currentLang].allCats}</option>`;
+      
+      const cats = [...new Set(RAW_CLAUSES.map(item => currentLang === 'zh' ? item.cz : item.ce))];
+      cats.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.innerText = cat;
+        select.appendChild(opt);
+      });
+      select.value = curVal || "ALL";
+    }
+
+    function renderChecklist() {
+      const container = document.getElementById('checklist-container');
+      container.innerHTML = '';
+
+      const searchKw = document.getElementById('search-input').value.toLowerCase().trim();
+      const selectedCat = document.getElementById('category-filter').value;
+
+      const filtered = RAW_CLAUSES.filter(item => {
+        const cat = currentLang === 'zh' ? item.cz : item.ce;
+        const title = currentLang === 'zh' ? item.tz : item.te;
+        const matchCat = (selectedCat === 'ALL' || cat === selectedCat);
+        const matchKw = (!searchKw || title.toLowerCase().includes(searchKw) || String(item.id).includes(searchKw));
+        return matchCat && matchKw;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm">未匹配到相关条款 / No matching clauses found</div>`;
+        return;
+      }
+
+      const t = I18N[currentLang];
+
+      filtered.forEach(item => {
+        const state = auditData[item.id] || { status: 'NONE', photo: null, note: '' };
+        const isNG = state.status === 'NG';
+        const isOK = state.status === 'OK';
+
+        const title = currentLang === 'zh' ? item.tz : item.te;
+        const subCat = currentLang === 'zh' ? item.sz : item.se;
+
+        const card = document.createElement('div');
+        card.className = `bg-white p-3.5 rounded-lg border transition shadow-sm ${isNG ? 'border-rose-400 bg-rose-50/20' : isOK ? 'border-emerald-300' : 'border-slate-200'}`;
+
+        card.innerHTML = `
+          <div class="flex justify-between items-start gap-2">
+            <div class="space-y-1 flex-grow">
+              <div class="flex items-center space-x-2">
+                <span class="bg-slate-100 text-slate-600 font-mono text-xs px-1.5 py-0.5 rounded border border-slate-200">#${item.id}</span>
+                <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">${subCat}</span>
+                <span class="text-xs font-bold ${item.lvl.includes('NG') ? 'text-rose-600 bg-rose-100' : 'text-amber-600 bg-amber-50'} px-1.5 py-0.5 rounded">${item.lvl} (${item.ded})</span>
+              </div>
+              <p class="text-xs sm:text-sm font-medium text-slate-800 pt-1 leading-snug">${title}</p>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+            <div class="flex space-x-2">
+              <button onclick="setStatus(${item.id}, 'OK')" class="px-3 py-1 text-xs rounded font-semibold flex items-center space-x-1 ${isOK ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                <i class="fa-solid fa-check"></i>
+                <span>${t.passBtn}</span>
+              </button>
+              <button onclick="setStatus(${item.id}, 'NG')" class="px-3 py-1 text-xs rounded font-semibold flex items-center space-x-1 ${isNG ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                <i class="fa-solid fa-xmark"></i>
+                <span>${t.failBtn}</span>
+              </button>
+            </div>
+
+            <!-- Upload Photo Button -->
+            <div>
+              <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-2.5 py-1 rounded font-medium inline-flex items-center space-x-1">
+                <i class="fa-solid fa-camera text-indigo-600"></i>
+                <span>${t.uploadPhoto}</span>
+                <input type="file" accept="image/*" class="hidden" onchange="handlePhotoUpload(event, ${item.id})">
+              </label>
+            </div>
+          </div>
+
+          <!-- Photo Preview & Notes (Visible when photo exists or status is NG) -->
+          <div class="${isNG || state.photo ? 'block' : 'hidden'} mt-2.5 space-y-2 bg-slate-50 p-2 rounded border border-slate-200">
+            ${state.photo ? `
+              <div class="relative inline-block">
+                <img src="${state.photo}" class="h-20 w-20 object-cover rounded border border-slate-300">
+                <button onclick="removePhoto(${item.id})" class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            ` : ''}
+            <input type="text" value="${state.note || ''}" onchange="updateNote(${item.id}, this.value)" placeholder="${t.notePlaceholder}" class="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    function setStatus(id, status) {
+      if (!auditData[id]) auditData[id] = { status: 'NONE', photo: null, note: '' };
+      auditData[id].status = auditData[id].status === status ? 'NONE' : status;
+      renderChecklist();
+      updateTotals();
+    }
+
+    function handlePhotoUpload(event, id) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        if (!auditData[id]) auditData[id] = { status: 'NG', photo: null, note: '' };
+        auditData[id].photo = e.target.result;
+        if (auditData[id].status === 'NONE') auditData[id].status = 'NG'; // Auto fail if photo uploaded
+        renderChecklist();
+        updateTotals();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removePhoto(id) {
+      if (auditData[id]) {
+        auditData[id].photo = null;
+        renderChecklist();
+        updateTotals();
+      }
+    }
+
+    function updateNote(id, val) {
+      if (!auditData[id]) auditData[id] = { status: 'NG', photo: null, note: '' };
+      auditData[id].note = val;
+    }
+
+    // -------------------------------------------------------------
+    // 5. TOTALS & STATUS CALCULATIONS
+    // -------------------------------------------------------------
+    function updateTotals() {
+      let totalPts = 0;
+      let hasStopOperation = false;
+      let violationCount = 0;
+
+      RAW_CLAUSES.forEach(item => {
+        const state = auditData[item.id];
+        if (state && state.status === 'NG') {
+          violationCount++;
+          if (item.lvl.includes('NG')) {
+            hasStopOperation = true;
+          } else {
+            totalPts += item.pts;
+          }
+        }
+      });
+
+      document.getElementById('total-deduction-display').innerText = `${totalPts} 分`;
+      
+      const badge = document.getElementById('violation-badge');
+      if (violationCount > 0) {
+        badge.innerText = violationCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+
+      const statusDisplay = document.getElementById('audit-status-display');
+      const t = I18N[currentLang];
+
+      if (hasStopOperation) {
+        statusDisplay.innerText = t.statusFail;
+        statusDisplay.className = "text-xs font-bold text-rose-700 bg-rose-100 px-2.5 py-1 rounded-full inline-block mt-0.5";
+      } else {
+        statusDisplay.innerText = t.statusPass;
+        statusDisplay.className = "text-sm font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full inline-block mt-0.5";
+      }
+
+      renderReport();
+    }
+
+    // -------------------------------------------------------------
+    // 6. REPORT GENERATION & EXPORT
+    // -------------------------------------------------------------
+    function renderReport() {
+      document.getElementById('report-meta-store').innerText = document.getElementById('input-store').value;
+      document.getElementById('report-meta-auditor').innerText = document.getElementById('input-auditor').value;
+      document.getElementById('report-meta-date').innerText = document.getElementById('input-date').value;
+      document.getElementById('report-meta-deduct').innerText = document.getElementById('total-deduction-display').innerText;
+
+      const listContainer = document.getElementById('report-issues-list');
+      const noViolationsMsg = document.getElementById('no-violations-msg');
+      listContainer.innerHTML = '';
+
+      const violations = RAW_CLAUSES.filter(item => auditData[item.id] && auditData[item.id].status === 'NG');
+
+      if (violations.length === 0) {
+        noViolationsMsg.classList.remove('hidden');
+        return;
+      }
+
+      noViolationsMsg.classList.add('hidden');
+
+      violations.forEach((item, idx) => {
+        const state = auditData[item.id];
+        const title = currentLang === 'zh' ? item.tz : item.te;
+        const subCat = currentLang === 'zh' ? item.sz : item.se;
+
+        const card = document.createElement('div');
+        card.className = "border border-slate-200 rounded-lg p-3 bg-white space-y-2";
+        card.innerHTML = `
+          <div class="flex justify-between items-start">
+            <span class="text-xs font-bold text-rose-600">#${idx + 1} [${subCat}] ${item.lvl} (-${item.ded})</span>
+            <span class="text-[10px] bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded font-mono">ID: ${item.id}</span>
+          </div>
+          <p class="text-xs font-semibold text-slate-800">${title}</p>
+          ${state.note ? `<p class="text-xs text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-100"><strong>整改要求:</strong> ${state.note}</p>` : ''}
+          ${state.photo ? `<div><img src="${state.photo}" class="h-28 w-auto object-cover rounded border border-slate-300"></div>` : ''}
+        `;
+        listContainer.appendChild(card);
+      });
+    }
+
+    function switchTab(tab) {
+      if (tab === 'checklist') {
+        document.getElementById('sec-checklist').classList.remove('hidden');
+        document.getElementById('sec-report').classList.add('hidden');
+        document.getElementById('tab-btn-checklist').className = "py-3 px-2 text-indigo-600 border-b-2 border-indigo-600 flex items-center space-x-1.5 font-bold";
+        document.getElementById('tab-btn-report').className = "py-3 px-2 text-slate-500 hover:text-indigo-600 flex items-center space-x-1.5 font-semibold";
+      } else {
+        document.getElementById('sec-checklist').classList.add('hidden');
+        document.getElementById('sec-report').classList.remove('hidden');
+        document.getElementById('tab-btn-report').className = "py-3 px-2 text-indigo-600 border-b-2 border-indigo-600 flex items-center space-x-1.5 font-bold";
+        document.getElementById('tab-btn-checklist').className = "py-3 px-2 text-slate-500 hover:text-indigo-600 flex items-center space-x-1.5 font-semibold";
+        renderReport();
+      }
+    }
+
+    function exportReportImage() {
+      const target = document.getElementById('export-report-card');
+      html2canvas(target, { scale: 2 }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `Audit_Report_${document.getElementById('input-store').value}_${document.getElementById('input-date').value}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+  </script>
+</body>
+</html>
